@@ -31,7 +31,6 @@ import com.google.android.gms.location.LocationResult;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.location.LocationSettingsRequest;
 import com.google.android.gms.location.LocationSettingsResponse;
-import com.google.android.gms.location.Priority;
 import com.google.android.gms.location.SettingsClient;
 import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.Task;
@@ -40,6 +39,7 @@ import com.zekitez.fusedlocation.databinding.ActivityMainBinding;
 import java.text.SimpleDateFormat;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.TimeZone;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -48,6 +48,8 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.databinding.DataBindingUtil;
+
+import static com.google.android.gms.location.Priority.*;
 
 /**
  * Retrieve current location using Google Play Services Location API
@@ -85,17 +87,14 @@ public class MainActivity extends AppCompatActivity {
     private String addressLabel;
     private String lastUpdateTimeLabel;
     private boolean isPhoneOnline = false;
-    private SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault());
+    private final SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault());
 
     private LocationRequest locationRequest;
     private FusedLocationProviderClient fusedLocationClient;
-    private LocationCallback locationCallback = new LocationCallback() {
+    private final LocationCallback locationCallback = new LocationCallback() {
         @Override
-        public void onLocationResult(LocationResult locationResult) {
-            Log.d(TAG, "onLocationResult : " + (locationResult == null ? 0 : locationResult.getLocations().size()));
-            if (locationResult == null) {
-                return;
-            }
+        public void onLocationResult(@NonNull LocationResult locationResult) {
+            Log.d(TAG, "onLocationResult : " + locationResult.getLocations().size());
             for (Location location : locationResult.getLocations()) {
                 // lastUpdateTime = DateFormat.getTimeInstance().format(location.getTime());
                 lastUpdateTime = sdf.format(location.getTime());
@@ -106,7 +105,7 @@ public class MainActivity extends AppCompatActivity {
         }
     };
 
-    private AtomicBoolean downloadingAddress = new AtomicBoolean(false);
+    private final AtomicBoolean downloadingAddress = new AtomicBoolean(false);
     private ConnectivityManager connectivityManager = null;
 
 
@@ -181,7 +180,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     protected void createLocationRequest() {
-        locationRequest = new LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, UPDATE_INTERVAL_IN_MILLISECONDS)
+        locationRequest = new LocationRequest.Builder(PRIORITY_HIGH_ACCURACY, UPDATE_INTERVAL_IN_MILLISECONDS)
                 .setWaitForAccurateLocation(false)
                 .setMinUpdateIntervalMillis(UPDATE_INTERVAL_IN_MILLISECONDS)
                 .setMaxUpdateDelayMillis(FASTEST_UPDATE_INTERVAL_IN_MILLISECONDS)
@@ -252,10 +251,10 @@ public class MainActivity extends AppCompatActivity {
         if (currentLocation == null) {
             return;
         }
-        binding.latitudeText.setText(String.format("%s: %f", latitudeLabel, currentLocation.getLatitude()));
-        binding.longitudeText.setText(String.format("%s: %f", longitudeLabel, currentLocation.getLongitude()));
+        binding.latitudeText.setText(String.format(Locale.getDefault(), "%s: %f", latitudeLabel, currentLocation.getLatitude()));
+        binding.longitudeText.setText(String.format(Locale.getDefault(),"%s: %f", longitudeLabel, currentLocation.getLongitude()));
         downloadAddress(currentLocation);
-        binding.accuracyText.setText(String.format("%s: %.2f", accuracyLabel,
+        binding.accuracyText.setText(String.format(Locale.getDefault(),"%s: %.2f", accuracyLabel,
                 (currentLocation.hasAccuracy() ? currentLocation.getAccuracy() : 999999.99)));
         binding.lastUpdateTimeText.setText(String.format("%s: %s", lastUpdateTimeLabel, lastUpdateTime));
     }
@@ -294,7 +293,8 @@ public class MainActivity extends AppCompatActivity {
                 }
                 runOnUiThread(() -> {
                     if (!resultOk) {
-                        binding.addressText.setText(addressLabel + ", no internet connection...");
+                        String txt = addressLabel + getString(R.string.no_internet_label);
+                        binding.addressText.setText(txt);
                         binding.addressText.setBackgroundColor(Color.RED);
                     } else {
                         binding.addressText.setText(txt);
@@ -317,7 +317,7 @@ public class MainActivity extends AppCompatActivity {
 
 
     @Override
-    public void onRequestPermissionsResult(int requestCode, String permissions[], int[] grantResults) {
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         switch (requestCode) {
             case PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION: {
@@ -360,11 +360,11 @@ public class MainActivity extends AppCompatActivity {
     public static boolean isPlayServicesAvailable(Context context) {
         // Google Play Service APK, check if is valid
         int resultCode = GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(context);
-        if (resultCode != ConnectionResult.SUCCESS) {
-            GoogleApiAvailability.getInstance().getErrorDialog((Activity) context, resultCode, 2).show();
-            return false;
+        if (resultCode == ConnectionResult.SUCCESS) {
+            return true;
         }
-        return true;
+        Objects.requireNonNull(GoogleApiAvailability.getInstance().getErrorDialog((Activity) context, resultCode, 2)).show();
+        return false;
     }
 
     @Override

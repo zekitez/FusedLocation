@@ -6,6 +6,7 @@
     <string name="accuracy_label">Accuracy</string>
     <string name="address_label">Address</string>
     <string name="last_update_time_label">Last location update time</string>
+    <string name="no_internet_label">", no internet connection…"</string>
 
     <string name="start_updates">Start updates</string>
     <string name="stop_updates">Stop updates</string>
