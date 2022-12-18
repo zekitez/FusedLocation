@@ -6,6 +6,7 @@ import android.app.AlertDialog;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.IntentSender;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.location.Address;
@@ -22,12 +23,18 @@ import android.widget.Toast;
 
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GoogleApiAvailability;
+import com.google.android.gms.common.api.ResolvableApiException;
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationCallback;
 import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationResult;
 import com.google.android.gms.location.LocationServices;
+import com.google.android.gms.location.LocationSettingsRequest;
+import com.google.android.gms.location.LocationSettingsResponse;
 import com.google.android.gms.location.Priority;
+import com.google.android.gms.location.SettingsClient;
+import com.google.android.gms.tasks.OnFailureListener;
+import com.google.android.gms.tasks.Task;
 import com.zekitez.fusedlocation.databinding.ActivityMainBinding;
 
 import java.text.SimpleDateFormat;
@@ -36,6 +43,7 @@ import java.util.Locale;
 import java.util.TimeZone;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
@@ -64,6 +72,7 @@ public class MainActivity extends AppCompatActivity {
 
     private static final int PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION = 1;
     private static final int REQUEST_CHECK_SETTINGS = 10;
+    private static final int REQUEST_CHECK_GOOGLE_SETTINGS = 500;
 
     private ActivityMainBinding binding;
 
@@ -177,6 +186,33 @@ public class MainActivity extends AppCompatActivity {
                 .setMinUpdateIntervalMillis(UPDATE_INTERVAL_IN_MILLISECONDS)
                 .setMaxUpdateDelayMillis(FASTEST_UPDATE_INTERVAL_IN_MILLISECONDS)
                 .build();
+
+        // From https://gist.github.com/kedarmp/26b5697f257d5d0d9f8f2cefe9944ddc
+        //This checks whether the GPS mode (high accuracy,battery saving, device only) is set appropriately for "locationRequest". If the current settings cannot fulfil
+        //the request(the Google Fused Location Provider determines these automatically), then we listen for failures and show a dialog box for the user to easily
+        //change these settings.
+        LocationSettingsRequest.Builder builder = new LocationSettingsRequest.Builder().addLocationRequest(locationRequest);
+
+        SettingsClient client = LocationServices.getSettingsClient(this);
+        Task<LocationSettingsResponse> task = client.checkLocationSettings(builder.build());
+        task.addOnFailureListener(new OnFailureListener() {
+            @Override
+            public void onFailure(@NonNull Exception e) {
+                if (e instanceof ResolvableApiException) {
+                    // Location settings are not satisfied, but this can be fixed by showing the user a dialog.
+                    Log.e(TAG,e.toString());
+                    try {
+                        // Show the dialog by calling startResolutionForResult(),
+                        // and check the result in onActivityResult().
+                        ResolvableApiException resolvable = (ResolvableApiException) e;
+                        resolvable.startResolutionForResult(MainActivity.this, REQUEST_CHECK_GOOGLE_SETTINGS);
+                    } catch (IntentSender.SendIntentException sendEx) {
+                        // Ignore the error.
+                    }
+                }
+            }
+        });
+
     }
 
     private void startLocationUpdates() {
@@ -258,7 +294,7 @@ public class MainActivity extends AppCompatActivity {
                 }
                 runOnUiThread(() -> {
                     if (!resultOk) {
-                        binding.addressText.setText(addressLabel);
+                        binding.addressText.setText(addressLabel + ", no internet connection...");
                         binding.addressText.setBackgroundColor(Color.RED);
                     } else {
                         binding.addressText.setText(txt);
@@ -334,6 +370,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     public void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        Log.d(TAG,"onActivityResult request:" + requestCode + " result:" + resultCode);
         switch (requestCode) {
             case REQUEST_CHECK_SETTINGS:
                 switch (resultCode) {
